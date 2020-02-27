@@ -20,7 +20,8 @@
 * git clone https://github.com/jinand10/hyperf-ws-new.git 
 * cd hyperf-ws-new && composer install
 * mv .env.sample .env 修改ENV配置文件 检查WS服务器配置，DB连接配置 Redis连接配置
-* 最后 php bin/hyperf.php start
+* 启动代码 sh bin/server.sh start
+* 重启代码则是 sh bin/server.sh restart
 
 > WS连接说明：
 * WS客户端测试地址：http://www.easyswoole.com/wstool.html
