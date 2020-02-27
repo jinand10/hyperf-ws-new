@@ -91,3 +91,55 @@ if (!function_exists('asyncQueueProduce')) {
         return $driver->push($job, $delay);
     }
 }
+
+if (!function_exists('local_uri')) {
+    /**
+     * 获取当前WS服务器URI
+     */
+    function local_uri(): string
+    {
+        return (string)(swoole_get_local_ip()['eth0'] ?? '').':'.env('WS_SERVER_PORT', '9501');
+    }
+}
+
+if (!function_exists('ws_fd_hash_field')) {
+    /**
+     * WS连接FD哈希域
+     */
+    function ws_fd_hash_field($fd): string
+    {
+        return local_uri().':'.$fd;
+    }
+}
+
+
+if (!function_exists('ws_push_channel')) {
+    /**
+     * WS-redis订阅渠道
+     */
+    function ws_push_channel($uri): string
+    {
+        return 'ws:push:channel:'.$uri;
+    }
+}
+
+if (!function_exists('ws_push')) {
+    /**
+     * WS推送
+     */
+    function ws_push($uri, $fd, $uid, $msg): bool
+    {
+        if (!$uri || !$fd) {
+            return false;
+        }
+        $push = json_encode([
+            'uri'   => $uri,
+            'fd'    => $fd,
+            'uid'   => $uid,
+            'msg'   => $msg,
+        ]);
+        return (bool)(redis()->publish(ws_push_channel($uri), $push));
+    }
+}
+
+

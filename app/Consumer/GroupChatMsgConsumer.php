@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace App\Consumer;
 
+use App\Service\WebSocket\MainService;
 use Hyperf\AsyncQueue\Job;
 use Hyperf\DbConnection\Db;
 
-class LeavePageStatConsumer extends Job
+/**
+ * 群聊消息持久化
+ */
+class GroupChatMsgConsumer extends Job
 {
     public $params;
 
@@ -18,14 +22,14 @@ class LeavePageStatConsumer extends Job
     }
 
     /**
-     * 离开页面统计队列处理
+     * 群聊消息持久化处理
      *
      * @author Jin<jinand10@163.com> 2020-01-10
      * @return void
      */
     public function handle()
     {
-        //写你的DB逻辑
-        var_dump($this->params);
+        //DB持久化操作
+        //$this->params 则是聊天数据
     }
 }

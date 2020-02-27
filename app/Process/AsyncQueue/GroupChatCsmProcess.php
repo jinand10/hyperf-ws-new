@@ -18,10 +18,10 @@ use Hyperf\Process\Annotation\Process;
 /**
  * @Process
  */
-class LeavePageProcess extends ConsumerProcess
+class GroupChatCsmProcess extends ConsumerProcess
 {
-     /**
+    /**
      * @var string
      */
-    protected $queue = 'leave_page_stat';
+    protected $queue = 'group_chat_msg';
 }
