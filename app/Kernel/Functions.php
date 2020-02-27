@@ -142,4 +142,15 @@ if (!function_exists('ws_push')) {
     }
 }
 
+if (!function_exists('auth_code')) {
+    function auth_code($string, $operation = 'DECODE')
+    {
+        if ($operation == 'DECODE') {
+            return base64_decode($string);
+        } else {
+            return base64_encode($string);
+        }
+    }
+}
+
 

@@ -25,14 +25,13 @@
 
 > WS连接说明：
 * WS客户端测试地址：http://www.easyswoole.com/wstool.html
-* WS地址：ws://IP:PORT?uid=1&page=group_chat
-* 参数说明：uid：用户ID, page：当前页面 例如群聊页面group_chat
+* WS地址：ws://IP:PORT?key=xxxxx
 
 说明：
-* 页面统计：只需要初始化WS连接 ws://IP:PORT?uid=用户ID&page=对应页面
+* 页面统计：只需要初始化WS连接 ws://IP:PORT?key=xxxxx
 * 群聊页面：
-    1. 初始化WS连接：ws://IP:PORT?uid=用户ID&page=群聊页面
-    2. WS-JSON消息体：
+    1. 初始化WS连接：ws://IP:PORT?key=xxxxx
+    2. WS-聊天JSON消息体：
         * 例子：{"event":"group_chat","data":{"send_uid": "1", "send_msg": "我吃饱啦"}}
         * event：指定群聊事件 group_chat
         * data.send_uid：发送者UID

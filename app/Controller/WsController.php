@@ -42,16 +42,17 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         
         //获取当前页面
         $connectInfo = $this->connectInfo($fd);
-        $page = $connectInfo['current_page'];
+        $model = $connectInfo['current_model'] ?? '';
         
-        $userList = redis()->hGetAll("ws:connect:page:{$page}");
+        //当前页面下的所有在线用户
+        $userList = redis()->hGetAll("ws:connect:model:{$model}");
         if (!$userList) {
             return false;
         }
 
         //异步入队持久化聊天消息
         $params = $data;
-        $params['current_page'] = $page;
+        $params['current_model'] = $model;
         asyncQueueProduce(new GroupChatMsgConsumer($params), 0, 'group_chat_msg');
 
         //推送给当前页面下的所有用户
@@ -77,25 +78,33 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
     {
         $params = $request->get;
         /**
-         * 获取UID
+         * 校验key
          */
-        $uid = $params['uid'] ?? '';
-        if (!$uid) {
-            //uid无效 关闭连接
+        $key = $params['key'] ?? '';
+        if (!$key) {
+            //key无效 关闭连接
             $server->close($request->fd);
+            return;
         }
-        /**
-         * 当前页面
-         */
-        $page = $params['page'] ?? '';
-        if (!$page) {
-            //page无效 关闭连接
+        $params = json_decode(auth_code($key), true);
+        if (!$params) {
+            //非法请求
             $server->close($request->fd);
+            return;
         }
+        $user_id = $params['user_id'] ?? 0;
+        $ower_id = $params['ower_id'] ?? 0;
+        $model = $params['model'] ?? '';
+        if ($user_id <= 0 || $ower_id <= 0 || !$model) {
+            //非法请求
+            $server->close($request->fd);
+            return;
+        }
+
         /**
          * 添加连接
          */
-        $this->addConnect($uid, $request->fd, $page);
+        $this->addConnect($request->fd, $params);
 
         $server->push($request->fd, 'success connect');
     }
@@ -103,35 +112,46 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
     /**
      * 添加连接
      *
-     * @param [type] $uid
-     * @param [type] $fd
-     * @param string $page
-     * @return void
      */
-    public function addConnect($uid, $fd, $page = '')
+    public function addConnect($fd, $params)
     {   
+        $user_id = $params['user_id'];
+        $ower_id = $params['ower_id'];
+        $model = $params['model'];
+        $share_user_id = $params['share_user_id'] ?? 0;
+        $content_id = $params['id'] ?? 0;
+        $url = $params['url'] ?? 0;
+
         $time = time();
         //进入页面统计
         $id = Db::table('page_record')->insertGetId([
-            'uid'       => $uid,
-            'page'      => $page,
-            'entry_time'=> $time,
+            'ower_id'       => $ower_id,
+            'user_id'       => $user_id,
+            'model'         => $model,
+            'share_user_id' => $share_user_id,
+            'content_id'    => $content_id,
+            'url'           => $url,
+            'entry_time'    => $time,
         ]);
+        /**
+         * 唯一用户标识
+         */
+        $unique_uid = $ower_id.'-'.$user_id;
         /**
          * 用户中心连接信息
          */
         $connect = json_encode([
             'server_uri'        => local_uri(), //当前ws服务器uri
-            'current_page'      => $page,       //当前连接页面
+            'current_model'     => $model,      //当前连接页面
             'connect_fd'        => $fd,         //连接ID
-            'connect_time'      => $time,      //连接时间
+            'connect_time'      => $time,       //连接时间
             'record_id'         => $id,
         ]);
-        redis()->hSet("ws:connect:user:center", $uid, $connect);
+        redis()->hSet("ws:connect:user:center", $unique_uid, $connect);
         /**
          * FD映射UID
          */
-        redis()->hSet("ws:connect:fd:map:uid", ws_fd_hash_field($fd), $uid);
+        redis()->hSet("ws:connect:fd:map:uid", ws_fd_hash_field($fd), $unique_uid);
         /**
          * 当前页面连接信息
          */
@@ -140,7 +160,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             'connect_fd'        => $fd,         //连接ID
             'connect_time'      => $time,      //连接时间
         ]);
-        redis()->hSet("ws:connect:page:{$page}", $uid, $currentPageConnect);
+        redis()->hSet("ws:connect:model:{$model}", $unique_uid, $currentPageConnect);
     }
 
     /**
@@ -152,18 +172,21 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
     public function connectInfo($fd)
     {
         /**
-         * 根据FD获取UID
+         * 根据FD获取唯一用户标识UID
          */
-        $uid = redis()->hGet("ws:connect:fd:map:uid", ws_fd_hash_field($fd));
+        $unique_uid = redis()->hGet("ws:connect:fd:map:uid", ws_fd_hash_field($fd));
+        if (!$unique_uid) {
+            return [];
+        }
         /**
          * 根据UID获取当前用户当前页面
          */
-        $userConnect = redis()->hGet("ws:connect:user:center", $uid); 
+        $userConnect = redis()->hGet("ws:connect:user:center", $unique_uid); 
         $userConnect = $userConnect ? json_decode($userConnect, true) : [];
 
         return [
-            'uid'           => $uid,
-            'current_page'  => $userConnect['current_page'] ?? '',
+            'unique_uid'    => $unique_uid,
+            'current_model' => $userConnect['current_model'] ?? '',
             'record_id'     => $userConnect['record_id'] ?? '',
         ];
     }
@@ -180,21 +203,22 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
          * 根据FD获取连接信息
          */
         $connectInfo = $this->connectInfo($fd);
-        $uid = $connectInfo['uid'];
-        $page = $connectInfo['current_page'];
+        if (!$connectInfo) {
+            return;
+        }
+        $unique_uid = $connectInfo['unique_uid'];
+        $model = $connectInfo['current_model'];
         $id = $connectInfo['record_id'];
 
         //更新离开时间
-        Db::table('page_record')->where('id', $id)->update([
-            'leave_time' => time(),
-        ]);
-
+        $time = time();
+        $res = Db::update("update page_record set leave_time = {$time}, stay_time = {$time}-entry_time where id = {$id}");
         //剔除用户连接数据
-        redis()->hDel("ws:connect:user:center", $uid);
+        redis()->hDel("ws:connect:user:center", $unique_uid);
         //剔除FD映射
         redis()->hDel("ws:connect:fd:map:uid", ws_fd_hash_field($fd));
         //剔除对应页面连接数据
-        redis()->hDel("ws:connect:page:{$page}", $uid);
+        redis()->hDel("ws:connect:model:{$model}", $unique_uid);
 
     }
 }
