@@ -30,8 +30,8 @@
 说明：
 * 页面统计：只需要初始化WS连接 ws://IP:PORT?uid=用户ID&page=对应页面
 * 群聊页面：
-    初始化WS连接：ws://IP:PORT?uid=用户ID&page=群聊页面
-    WS-JSON消息体：
+    1. 初始化WS连接：ws://IP:PORT?uid=用户ID&page=群聊页面
+    2. WS-JSON消息体：
         * 例子：{"event":"group_chat","data":{"send_uid": "1", "send_msg": "我吃饱啦"}}
         * event：指定群聊事件 group_chat
         * data.send_uid：发送者UID
