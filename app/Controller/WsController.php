@@ -32,10 +32,10 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 
     public function groupChat($fd, $data)
     {
-        $uid = $data['send_uid'] ?? ''; //发送者UID
-        $name = $data['send_name'] ?? ''; //发送者名称
-        $avatar = $data['send_avatar'] ?? ''; //发送者头像
-        $msg = $data['send_msg'] ?? ''; //消息内容
+        $uid = $data['from'] ?? ''; //发送者UID
+        $name = $data['fromNick'] ?? ''; //发送者名称
+        $avatar = $data['fromAvatar'] ?? ''; //发送者头像
+        $msg = $data['text'] ?? ''; //消息内容
         if (!$uid || !$msg) {
             return false;
         }
