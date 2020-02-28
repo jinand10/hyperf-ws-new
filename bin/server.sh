@@ -30,6 +30,8 @@ stop(){
     sleep 1
   done
 
+  php ${basepath}/bin/flush_ws_connect.php
+
   echo "Stop!"
   return $!
 }
