@@ -43,6 +43,8 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         //获取当前页面
         $connectInfo = $this->connectInfo($fd);
         $model = $connectInfo['current_model'] ?? '';
+		
+
         
         //当前页面下的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$model}");
@@ -56,11 +58,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         asyncQueueProduce(new GroupChatMsgConsumer($params), 0, 'group_chat_msg');
 
         //推送给当前页面下的所有用户
-        foreach ($userList as $uid => $item) {
+        foreach ($userList as $uid_key => $item) {
             $array = json_decode($item, true);
             $server_uri = $array['server_uri'] ?? '';
             $connect_fd = $array['connect_fd'] ?? '';
-            ws_push($server_uri, $connect_fd, $uid, json_encode($data, JSON_UNESCAPED_UNICODE));
+			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
         }
         
     }
@@ -121,6 +123,8 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $share_user_id = $params['share_user_id'] ?? 0;
         $content_id = $params['id'] ?? 0;
         $url = $params['url'] ?? 0;
+		
+		$curr_model = $model.':'.$content_id;
 
         $time = time();
         //进入页面统计
@@ -142,7 +146,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
          */
         $connect = json_encode([
             'server_uri'        => local_uri(), //当前ws服务器uri
-            'current_model'     => $model,      //当前连接页面
+            'current_model'     => $curr_model,      //当前连接页面
             'connect_fd'        => $fd,         //连接ID
             'connect_time'      => $time,       //连接时间
             'record_id'         => $id,
@@ -160,7 +164,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             'connect_fd'        => $fd,         //连接ID
             'connect_time'      => $time,      //连接时间
         ]);
-        redis()->hSet("ws:connect:model:{$model}", $unique_uid, $currentPageConnect);
+        redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
     }
 
     /**
