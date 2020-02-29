@@ -87,11 +87,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
     public function onOpen(WebSocketServer $server, Request $request): void
     {
         $params = $request->get;
-        /**
-         * 校验key
-         */
-		 
-		
+    	
         $key = $params['key'] ?? '';
 		logger()->info('onOpen: '.$key);
         if (!$key) {
@@ -136,16 +132,16 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $model = $params['model'];
         $share_user_id = $params['share_user_id'] ?? 0;
         $content_id = $params['id'] ?? 0;
-        $url = $params['url'] ?? 0;
+        $url = $params['url'] ?? '';
+        $type = $params['type'] ?? '';
 		
 		$curr_model = $model.':'.$content_id;
 		
-		$time = time();
-		if($params['type'] == 'user_stat')
-		{
-			
+        $time = time();
+        $record_id = 0;
+		if ($type == 'user_stat') {
 			//进入页面统计
-			$id = Db::table('page_record')->insertGetId([
+			$record_id = Db::table('page_record')->insertGetId([
 				'ower_id'       => $ower_id,
 				'user_id'       => $user_id,
 				'model'         => $model,
@@ -164,10 +160,10 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
          */
         $connect = json_encode([
             'server_uri'        => local_uri(), //当前ws服务器uri
-            'current_model'     => $curr_model,      //当前连接页面
+            'current_model'     => $curr_model, //当前连接页面
             'connect_fd'        => $fd,         //连接ID
             'connect_time'      => $time,       //连接时间
-            'record_id'         => $id,
+            'record_id'         => $record_id,
         ]);
         redis()->hSet("ws:connect:user:center", $unique_uid, $connect);
         /**
@@ -183,7 +179,9 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             'connect_time'      => $time,      //连接时间
         ]);
         redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
-		logger()->info($fd.',add current_model: '.$curr_model);	
+
+        var_dump('加入连接中心成功');
+		logger()->info('加入连接中心成功', $params);	
     }
 
     /**

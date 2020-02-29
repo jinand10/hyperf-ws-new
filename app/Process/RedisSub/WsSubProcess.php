@@ -28,7 +28,6 @@ class WsSubProcess extends AbstractProcess
         $fd = (int)($data['fd'] ?? 0);
         $msg = $data['msg'] ?? '';
         if ($fd && $msg) {
-            var_dump(1);
             $this->container->get(Sender::class)->push($fd, $msg);
         }
     }
