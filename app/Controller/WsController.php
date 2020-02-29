@@ -46,6 +46,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $connectInfo = $this->connectInfo($fd);
         $model = $connectInfo['current_model'] ?? '';
 		
+	logger()->info($uid.',get current_model: '.$model);	
 
 		// $time = time();
         // //存聊天统计
@@ -99,15 +100,20 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         /**
          * 校验key
          */
+		 
+		
         $key = $params['key'] ?? '';
+		logger()->info('onOpen: '.$key);
         if (!$key) {
             //key无效 关闭连接
             $server->close($request->fd);
+			logger()->info('key无效 关闭连接: '.$key);
             return;
         }
         $params = json_decode(auth_code($key), true);
         if (!$params) {
             //非法请求
+			logger()->info('非法请求: '.$key);
             $server->close($request->fd);
             return;
         }
@@ -117,6 +123,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         if ($user_id <= 0 || $ower_id <= 0 || !$model) {
             //非法请求
             $server->close($request->fd);
+			logger()->info('非法请求2: '.$key);
             return;
         }
 
@@ -142,18 +149,21 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $url = $params['url'] ?? 0;
 		
 		$curr_model = $model.':'.$content_id;
-
-        $time = time();
-        //进入页面统计
-        $id = Db::table('page_record')->insertGetId([
-            'ower_id'       => $ower_id,
-            'user_id'       => $user_id,
-            'model'         => $model,
-            'share_user_id' => $share_user_id,
-            'content_id'    => $content_id,
-            'url'           => $url,
-            'entry_time'    => $time,
-        ]);
+logger()->info($user_id.',add current_model: '.$curr_model);	
+		if(params['type'] == 'user_stat')
+		{
+			$time = time();
+			//进入页面统计
+			$id = Db::table('page_record')->insertGetId([
+				'ower_id'       => $ower_id,
+				'user_id'       => $user_id,
+				'model'         => $model,
+				'share_user_id' => $share_user_id,
+				'content_id'    => $content_id,
+				'url'           => $url,
+				'entry_time'    => $time,
+			]);
+		}
         /**
          * 唯一用户标识
          */
