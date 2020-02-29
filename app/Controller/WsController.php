@@ -46,27 +46,16 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $connectInfo = $this->connectInfo($fd);
         $model = $connectInfo['current_model'] ?? '';
 		
-	logger()->info($uid.',get current_model: '.$model);	
+	//	$model = 'zhibo:'.$data['video_id'];
+		
+		logger()->info($fd.',get current_model: '.$model);	
 
-		// $time = time();
-        // //存聊天统计
-        // $id = Db::table('dms_info')->insertGetId([
-        //     'ower_id'       => $data['ower_id'],
-		// 	'uid'=> $data['uid'],
-        //     'user_id'       => $data['from'],
-        //     'fromNick'         => $data['fromNick'],
-        //     'fromAvatar'         => $data['fromAvatar'],
-        //     'chatroomId'         => $data['chatroomId'],
-        //     'type'         => $data['type'],
-        //     'text'         => $data['text'],
-		// 	'video_id'         => $data['video_id'],
-		// 	'time'         => $time,
-		// 	'custom'         => addslashes(json_encode($data['custom'])),
-        // ]);
+
         
         //当前页面下的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$model}");
         if (!$userList) {
+			logger()->info('user list  is empty: '.$model);	
             return false;
         }
 
@@ -81,6 +70,7 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             $server_uri = $array['server_uri'] ?? '';
             $connect_fd = $array['connect_fd'] ?? '';
 			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
+			logger()->info($connect_fd.',user key : '.$uid_key);
         }
         
     }
@@ -149,10 +139,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $url = $params['url'] ?? 0;
 		
 		$curr_model = $model.':'.$content_id;
-logger()->info($user_id.',add current_model: '.$curr_model);	
-		if(params['type'] == 'user_stat')
+		
+		$time = time();
+		if($params['type'] == 'user_stat')
 		{
-			$time = time();
+			
 			//进入页面统计
 			$id = Db::table('page_record')->insertGetId([
 				'ower_id'       => $ower_id,
@@ -192,6 +183,7 @@ logger()->info($user_id.',add current_model: '.$curr_model);
             'connect_time'      => $time,      //连接时间
         ]);
         redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
+		logger()->info($fd.',add current_model: '.$curr_model);	
     }
 
     /**

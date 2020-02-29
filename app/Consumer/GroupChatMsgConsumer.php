@@ -34,7 +34,7 @@ class GroupChatMsgConsumer extends Job
         $data = $this->params;
 		$ower_id = $data['ower_id'];
 		$from = $data['from'];
-		$uid = $data['from'];
+		$uid = $data['uid'];
 		$text = $data['text'];
 		if($ower_id && $uid && $from)
 		{
