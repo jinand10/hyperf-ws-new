@@ -7,6 +7,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Utils\ApplicationContext;
 use Hyperf\Utils\Context;
 use Psr\Http\Message\ServerRequestInterface;
+use Hyperf\Snowflake\IdGeneratorInterface;
 
 if (!function_exists('di')) {
     /**
@@ -152,5 +153,29 @@ if (!function_exists('auth_code')) {
         }
     }
 }
+
+if (!function_exists('uuid')) {
+    function uuid()
+    {  
+        $chars = md5(uniqid(mt_rand(), true));  
+        $uuid = substr ( $chars, 0, 8 ) . '-'
+                . substr ( $chars, 8, 4 ) . '-' 
+                . substr ( $chars, 12, 4 ) . '-'
+                . substr ( $chars, 16, 4 ) . '-'
+                . substr ( $chars, 20, 12 );  
+        return $uuid ;  
+    }
+}
+
+if (!function_exists('snow_id')) {
+    function snow_id()
+    {  
+        $container = ApplicationContext::getContainer();
+        $generator = $container->get(IdGeneratorInterface::class);
+        $id = $generator->generate();
+        return $id;
+    }
+}
+
 
 

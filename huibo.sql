@@ -16,3 +16,11 @@ CREATE TABLE `page_record` (
   PRIMARY KEY (`id`),
   KEY `idx_ower_user`(`ower_id`, `user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COMMENT='页面记录表';
+
+alter table `page_record` drop KEY `idx_ower_user`;
+alter table `page_record` add UNIQUE KEY `idx_unique`(`ower_id`, `user_id`, `model`, `content_id`, `entry_time`);
+
+
+alter table `dms_info` add `msg_id` bigint(20) NOT NULL DEFAULT '0' COMMENT '消息ID';
+alter table `dms_info` add UNIQUE KEY `msg_id`(`msg_id`);
+alter table `dms_info` change `id` `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT COMMENT 'ID';

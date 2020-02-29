@@ -20,8 +20,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 {
     public function onMessage(WebSocketServer $server, Frame $frame): void
     {
-        logger()->info('接受消息: '.$frame->data);
-
         $data   = json_decode($frame->data, true);
         $event  = $data['event'] ?? '';
         $data   = $data['data'] ?? [];
@@ -40,12 +38,13 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
      */
     public function groupChat($fd, $data)
     {
-        logger()->info('接受群聊消息: '.json_encode($data, JSON_UNESCAPED_UNICODE));
-
         $uid = $data['from'] ?? ''; //发送者UID
         $name = $data['fromNick'] ?? ''; //发送者名称
         $avatar = $data['fromAvatar'] ?? ''; //发送者头像
         $msg = $data['text'] ?? ''; //消息内容
+
+        //生成消息ID
+        $data['msg_id'] = snow_id();
 
         //获取当前页面
         $connectInfo = $this->connectInfo($fd);
@@ -54,7 +53,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         //当前页面下的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$model}");
         if (!$userList) {
-			logger()->info('user list  is empty: '.$model);	
             return false;
         }
 
@@ -67,8 +65,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             $array = json_decode($item, true);
             $server_uri = $array['server_uri'] ?? '';
             $connect_fd = $array['connect_fd'] ?? '';
-			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
-			logger()->info($connect_fd.',user key : '.$uid_key);
+            try {
+                ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
+            } catch (\Throwable $e) {
+                logger()->error('发送失败 error: '.$e->getMessage());
+            }
         }  
     }
 
@@ -82,10 +83,12 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         //需推送的页面
         $push_model = $model.':'.$video_id;
 
+        //生成消息ID
+        $data['msg_id'] = snow_id();
+
         //需推送的页面的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$push_model}");
         if (!$userList) {
-			logger()->info('user list  is empty: '.$model);	
             return false;
         }
 
@@ -98,7 +101,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             $array = json_decode($item, true);
             $server_uri = $array['server_uri'] ?? '';
             $connect_fd = $array['connect_fd'] ?? '';
-			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
+            try {
+                ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
+            } catch (\Throwable $e) {
+                logger()->error('发送失败 error: '.$e->getMessage());
+            }
         }  
     }
 
@@ -116,17 +123,14 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $params = $request->get;
     	
         $key = $params['key'] ?? '';
-		logger()->info('onOpen: '.$key);
         if (!$key) {
             //key无效 关闭连接
             $server->close($request->fd);
-			logger()->info('key无效 关闭连接: '.$key);
             return;
         }
         $params = json_decode(auth_code($key), true);
         if (!$params) {
             //非法请求
-			logger()->info('非法请求: '.$key);
             $server->close($request->fd);
             return;
         }
@@ -140,7 +144,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             if ($user_id <= 0 || $ower_id <= 0 || !$model) {
                 //非法请求
                 $server->close($request->fd);
-                logger()->info('非法请求2: '.$key);
                 return;
             }
             $this->addConnect($request->fd, $params);
@@ -169,16 +172,21 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $record_id = 0; //统计ID
 
 		if ($type == 'user_stat') {
-			//进入页面统计
-			$record_id = Db::table('page_record')->insertGetId([
-				'ower_id'       => $ower_id,
-				'user_id'       => $user_id,
-				'model'         => $model,
-				'share_user_id' => $share_user_id,
-				'content_id'    => $content_id,
-				'url'           => $url,
-				'entry_time'    => $time,
-			]);
+            try {
+                //进入页面统计
+                $record_id = Db::table('page_record')->insertGetId([
+                    'ower_id'       => $ower_id,
+                    'user_id'       => $user_id,
+                    'model'         => $model,
+                    'share_user_id' => $share_user_id,
+                    'content_id'    => $content_id,
+                    'url'           => $url,
+                    'entry_time'    => $time,
+                ]);
+            } catch (\Throwable $e) {
+                logger()->error('进入页面统计异常 error: '.$e->getMessage());
+                $record_id = 0;
+            }
 		}
         /**
          * 唯一用户标识
@@ -209,7 +217,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         ]);
         redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
 
-		logger()->info('加入连接中心成功', $params);	
     }
 
     /**

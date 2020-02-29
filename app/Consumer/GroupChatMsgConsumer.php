@@ -35,7 +35,9 @@ class GroupChatMsgConsumer extends Job
 		$ower_id = $data['ower_id'] ?? '';
 		$from = $data['from'] ?? '';
 		$uid = $data['uid'] ?? '';
-		if($ower_id && $uid && $from)
+		$custom_type = $data['custom']['type'] ?? '';
+
+		if($ower_id && $uid && $from && $custom_type != 'hongbaoget')
 		{
 			$time = time();
 			//存聊天统计
@@ -50,7 +52,8 @@ class GroupChatMsgConsumer extends Job
 				'text'          => $data['text'] ?? '',
 				'video_id'      => $data['video_id'] ?? '',
 				'time'          => $time,
-				'custom'        => isset($data['custom']) && $data['custom'] ? addslashes(json_encode($data['custom'])) : $data['custom'],
+				'custom'        => isset($data['custom']) && $data['custom'] ? addslashes(json_encode($data['custom'])) : '',
+				'msg_id'		=> $data['msg_id'],
 			]);
 		}
     }
