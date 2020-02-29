@@ -20,6 +20,8 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 {
     public function onMessage(WebSocketServer $server, Frame $frame): void
     {
+        logger()->info('接受消息: '.$frame->data);
+
         $data   = json_decode($frame->data, true);
         $event  = $data['event'] ?? '';
         $data   = $data['data'] ?? [];
@@ -38,14 +40,28 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $name = $data['fromNick'] ?? ''; //发送者名称
         $avatar = $data['fromAvatar'] ?? ''; //发送者头像
         $msg = $data['text'] ?? ''; //消息内容
-        if (!$uid || !$msg) {
-            return false;
-        }        
+
+        
         //获取当前页面
         $connectInfo = $this->connectInfo($fd);
         $model = $connectInfo['current_model'] ?? '';
 		
 
+		// $time = time();
+        // //存聊天统计
+        // $id = Db::table('dms_info')->insertGetId([
+        //     'ower_id'       => $data['ower_id'],
+		// 	'uid'=> $data['uid'],
+        //     'user_id'       => $data['from'],
+        //     'fromNick'         => $data['fromNick'],
+        //     'fromAvatar'         => $data['fromAvatar'],
+        //     'chatroomId'         => $data['chatroomId'],
+        //     'type'         => $data['type'],
+        //     'text'         => $data['text'],
+		// 	'video_id'         => $data['video_id'],
+		// 	'time'         => $time,
+		// 	'custom'         => addslashes(json_encode($data['custom'])),
+        // ]);
         
         //当前页面下的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$model}");

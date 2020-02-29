@@ -31,5 +31,22 @@ class GroupChatMsgConsumer extends Job
     {
         //DB持久化操作
         //$this->params 则是聊天数据
+        $data = $this->params;
+
+        $time = time();
+        //存聊天统计
+        $id = Db::table('dms_info')->insertGetId([
+            'ower_id'       => $data['ower_id'],
+			'uid'           => $data['uid'],
+            'user_id'       => $data['from'],
+            'fromNick'      => $data['fromNick'],
+            'fromAvatar'    => $data['fromAvatar'],
+            'chatroomId'    => $data['chatroomId'],
+            'type'          => $data['type'],
+            'text'          => $data['text'],
+			'video_id'      => $data['video_id'],
+			'time'          => $time,
+			'custom'        => addslashes(json_encode($data['custom'])),
+        ]);
     }
 }
