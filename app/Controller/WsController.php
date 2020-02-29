@@ -28,10 +28,15 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         switch ($event) {
             case "group_chat":
                 $this->groupChat($frame->fd, $data);
+            case "php_caller_push_group_chat":
+                $this->phpCallerPushGroupChat($frame->fd, $data);
             break;
         }
     }
 
+    /**
+     * JS群聊逻辑处理
+     */
     public function groupChat($fd, $data)
     {
         logger()->info('接受群聊消息: '.json_encode($data, JSON_UNESCAPED_UNICODE));
@@ -41,16 +46,9 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $avatar = $data['fromAvatar'] ?? ''; //发送者头像
         $msg = $data['text'] ?? ''; //消息内容
 
-        
         //获取当前页面
         $connectInfo = $this->connectInfo($fd);
         $model = $connectInfo['current_model'] ?? '';
-		
-	//	$model = 'zhibo:'.$data['video_id'];
-		
-		logger()->info($fd.',get current_model: '.$model);	
-
-
         
         //当前页面下的所有在线用户
         $userList = redis()->hGetAll("ws:connect:model:{$model}");
@@ -61,7 +59,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 
         //异步入队持久化聊天消息
         $params = $data;
-        $params['current_model'] = $model;
         asyncQueueProduce(new GroupChatMsgConsumer($params), 0, 'group_chat_msg');
 
         //推送给当前页面下的所有用户
@@ -71,8 +68,37 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             $connect_fd = $array['connect_fd'] ?? '';
 			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
 			logger()->info($connect_fd.',user key : '.$uid_key);
+        }  
+    }
+
+    /**
+     * PHP调用-推送消息到群聊
+     */
+    public function phpCallerPushGroupChat($fd, $data)
+    {
+        $model = $data['model'] ?? '';
+        $video_id = $data['video_id'] ?? '0';
+        //需推送的页面
+        $push_model = $model.':'.$video_id;
+
+        //需推送的页面的所有在线用户
+        $userList = redis()->hGetAll("ws:connect:model:{$push_model}");
+        if (!$userList) {
+			logger()->info('user list  is empty: '.$model);	
+            return false;
         }
-        
+
+        //异步入队持久化聊天消息
+        $params = $data;
+        asyncQueueProduce(new GroupChatMsgConsumer($params), 0, 'group_chat_msg');
+
+        //推送给需推送的页面的所有用户
+        foreach ($userList as $uid_key => $item) {
+            $array = json_decode($item, true);
+            $server_uri = $array['server_uri'] ?? '';
+            $connect_fd = $array['connect_fd'] ?? '';
+			ws_push($server_uri, $connect_fd, $uid_key, json_encode($data, JSON_UNESCAPED_UNICODE));
+        }  
     }
 
     public function onClose(Server $server, int $fd, int $reactorId): void
@@ -103,20 +129,21 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             $server->close($request->fd);
             return;
         }
-        $user_id = $params['user_id'] ?? 0;
-        $ower_id = $params['ower_id'] ?? 0;
-        $model = $params['model'] ?? '';
-        if ($user_id <= 0 || $ower_id <= 0 || !$model) {
-            //非法请求
-            $server->close($request->fd);
-			logger()->info('非法请求2: '.$key);
-            return;
-        }
 
-        /**
-         * 添加连接
-         */
-        $this->addConnect($request->fd, $params);
+        //是否PHP调用
+        $type = $params['type'] ?? '';
+        if ($type != 'php_caller') {
+            $user_id = $params['user_id'] ?? 0;
+            $ower_id = $params['ower_id'] ?? 0;
+            $model = $params['model'] ?? '';
+            if ($user_id <= 0 || $ower_id <= 0 || !$model) {
+                //非法请求
+                $server->close($request->fd);
+                logger()->info('非法请求2: '.$key);
+                return;
+            }
+            $this->addConnect($request->fd, $params);
+        } 
 
         $server->push($request->fd, 'success connect');
     }
@@ -137,8 +164,9 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 		
 		$curr_model = $model.':'.$content_id;
 		
-        $time = time();
-        $record_id = 0;
+        $time = time(); 
+        $record_id = 0; //统计ID
+
 		if ($type == 'user_stat') {
 			//进入页面统计
 			$record_id = Db::table('page_record')->insertGetId([
@@ -180,7 +208,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         ]);
         redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
 
-        var_dump('加入连接中心成功');
 		logger()->info('加入连接中心成功', $params);	
     }
 
@@ -232,8 +259,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         $id = $connectInfo['record_id'];
 
         //更新离开时间
-        $time = time();
-        $res = Db::update("update page_record set leave_time = {$time}, stay_time = {$time}-entry_time where id = {$id}");
+        if ($id) {
+            $time = time();
+            $res = Db::update("update page_record set leave_time = {$time}, stay_time = {$time}-entry_time where id = {$id}");
+        }
+        
         //剔除用户连接数据
         redis()->hDel("ws:connect:user:center", $unique_uid);
         //剔除FD映射
