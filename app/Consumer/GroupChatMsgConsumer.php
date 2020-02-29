@@ -34,16 +34,15 @@ class GroupChatMsgConsumer extends Job
         $data = $this->params;
 		$ower_id = $data['ower_id'] ?? '';
 		$from = $data['from'] ?? '';
-		$uid = $data['uid'] ?? '';
 		$custom_type = $data['custom']['type'] ?? '';
 
-		if($ower_id && $uid && $from && $custom_type != 'hongbaoget')
+		if($ower_id && $from && $custom_type != 'hongbaoget')
 		{
 			$time = time();
 			//存聊天统计
 			$id = Db::table('dms_info')->insertGetId([
 				'ower_id'       => $ower_id,
-				'uid'           => $uid,
+				'uid'           => $from,
 				'from'       	=> $from,
 				'fromNick'      => $data['fromNick'] ?? '',
 				'fromAvatar'    => $data['fromAvatar'] ?? '',
