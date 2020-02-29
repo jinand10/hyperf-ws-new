@@ -28,9 +28,10 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         switch ($event) {
             case "group_chat":
                 $this->groupChat($frame->fd, $data);
+			    break;
             case "php_caller_push_group_chat":
                 $this->phpCallerPushGroupChat($frame->fd, $data);
-            break;
+                break;
         }
     }
 

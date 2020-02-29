@@ -32,10 +32,9 @@ class GroupChatMsgConsumer extends Job
         //DB持久化操作
         //$this->params 则是聊天数据
         $data = $this->params;
-		$ower_id = $data['ower_id'];
-		$from = $data['from'];
-		$uid = $data['uid'];
-		$text = $data['text'];
+		$ower_id = $data['ower_id'] ?? '';
+		$from = $data['from'] ?? '';
+		$uid = $data['uid'] ?? '';
 		if($ower_id && $uid && $from)
 		{
 			$time = time();
@@ -43,15 +42,15 @@ class GroupChatMsgConsumer extends Job
 			$id = Db::table('dms_info')->insertGetId([
 				'ower_id'       => $ower_id,
 				'uid'           => $uid,
-				'from'       => $from,
-				'fromNick'      => $data['fromNick'],
-				'fromAvatar'    => $data['fromAvatar'],
-				'chatroomId'    => $data['chatroomId'],
-				'type'          => $data['type'],
-				'text'          => $data['text'],
-				'video_id'      => $data['video_id'],
+				'from'       	=> $from,
+				'fromNick'      => $data['fromNick'] ?? '',
+				'fromAvatar'    => $data['fromAvatar'] ?? '',
+				'chatroomId'    => $data['chatroomId'] ?? '',
+				'type'          => $data['type'] ?? '',
+				'text'          => $data['text'] ?? '',
+				'video_id'      => $data['video_id'] ?? '',
 				'time'          => $time,
-				'custom'        => addslashes(json_encode($data['custom'])),
+				'custom'        => isset($data['custom']) && $data['custom'] ? addslashes(json_encode($data['custom'])) : $data['custom'],
 			]);
 		}
     }
