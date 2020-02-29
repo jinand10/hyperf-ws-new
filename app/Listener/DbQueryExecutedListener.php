@@ -55,9 +55,9 @@ class DbQueryExecutedListener implements ListenerInterface
                     $sql = Str::replaceFirst('?', "'{$value}'", $sql);
                 }
             }
-            if (config('app_env') == 'local' || config('app_env') == 'test') {
-                $this->logger->info(sprintf('[%s] %s', $event->time, $sql));
-            }
+            // if (config('app_env') == 'local' || config('app_env') == 'test') {
+            //     $this->logger->info(sprintf('[%s] %s', $event->time, $sql));
+            // }
         }
     }
 }
