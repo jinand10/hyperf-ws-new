@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Consumer\GroupChatMsgConsumer;
+use App\Consumer\UserStatEntryConsumer;
+use App\Consumer\UserStatLeaveConsumer;
 use Hyperf\Contract\OnCloseInterface;
 use Hyperf\Contract\OnMessageInterface;
 use Hyperf\Contract\OnOpenInterface;
@@ -146,7 +148,11 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
                 $server->close($request->fd);
                 return;
             }
-            $this->addConnect($request->fd, $params);
+            $add_res = $this->addConnect($request->fd, $params);
+            if (!$add_res) {
+                //添加连接中心失败
+                $server->close($request->fd);
+            }
         } 
 
         $server->push($request->fd, 'success connect');
@@ -169,24 +175,43 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
 		$curr_model = $model.':'.$content_id;
 		
         $time = time(); 
-        $record_id = 0; //统计ID
+
+        //redis 限流
+        $limit_key = "ws:connect:limit:ower_id:{$ower_id}:user_id:{$user_id}:model:{$model}:id:{$content_id}:time:{$time}";
+        if (!redis()->setnx($limit_key, 1)) {
+            return false;
+        }
 
 		if ($type == 'user_stat') {
-            try {
-                //进入页面统计
-                $record_id = Db::table('page_record')->insertGetId([
-                    'ower_id'       => $ower_id,
-                    'user_id'       => $user_id,
-                    'model'         => $model,
-                    'share_user_id' => $share_user_id,
-                    'content_id'    => $content_id,
-                    'url'           => $url,
-                    'entry_time'    => $time,
-                ]);
-            } catch (\Throwable $e) {
-                logger()->error('进入页面统计异常 error: '.$e->getMessage());
-                $record_id = 0;
-            }
+            // try {
+            //     //进入页面统计
+            //     $record_id = Db::table('page_record')->insertGetId([
+            //         'ower_id'       => $ower_id,
+            //         'user_id'       => $user_id,
+            //         'model'         => $model,
+            //         'share_user_id' => $share_user_id,
+            //         'content_id'    => $content_id,
+            //         'url'           => $url,
+            //         'entry_time'    => $time,
+            //     ]);
+            // } catch (\Throwable $e) {
+            //     logger()->error('进入页面统计异常 error: '.$e->getMessage());
+            //     $record_id = 0;
+            //     return false;
+            // }
+            $user_stat_data = [
+                'ower_id'       => $ower_id,
+                'user_id'       => $user_id,
+                'model'         => $model,
+                'share_user_id' => $share_user_id,
+                'content_id'    => $content_id,
+                'url'           => $url,
+                'entry_time'    => $time,
+            ];
+            redis()->hSet("ws:connect:user:stat:fd:map:entry", ws_fd_hash_field($fd), json_encode($user_stat_data));
+            
+            //异步入队-进入页面统计数据
+            asyncQueueProduce(new UserStatEntryConsumer($user_stat_data), 0, 'user_stat_entry');
 		}
         /**
          * 唯一用户标识
@@ -200,7 +225,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
             'current_model'     => $curr_model, //当前连接页面
             'connect_fd'        => $fd,         //连接ID
             'connect_time'      => $time,       //连接时间
-            'record_id'         => $record_id,
         ]);
         redis()->hSet("ws:connect:user:center", $unique_uid, $connect);
         /**
@@ -217,6 +241,10 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         ]);
         redis()->hSet("ws:connect:model:{$curr_model}", $unique_uid, $currentPageConnect);
 
+        //释放锁
+        redis()->del($limit_key);
+
+        return true;
     }
 
     /**
@@ -243,7 +271,6 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         return [
             'unique_uid'    => $unique_uid,
             'current_model' => $userConnect['current_model'] ?? '',
-            'record_id'     => $userConnect['record_id'] ?? '',
         ];
     }
 
@@ -264,12 +291,17 @@ class WsController implements OnMessageInterface, OnOpenInterface, OnCloseInterf
         }
         $unique_uid = $connectInfo['unique_uid'];
         $model = $connectInfo['current_model'];
-        $id = $connectInfo['record_id'];
 
-        //更新离开时间
-        if ($id) {
+        //判断是否有进入页面统计事件
+        $user_stat_entry = redis()->hGet("ws:connect:user:stat:fd:map:entry", ws_fd_hash_field($fd));
+        if ($user_stat_entry) {
             $time = time();
-            $res = Db::update("update page_record set leave_time = {$time}, stay_time = {$time}-entry_time where id = {$id}");
+            $user_stat_data = json_decode($user_stat_entry, true);
+            $user_stat_data['leave_time'] = $time;
+            //异步入队-离开页面统计数据
+            asyncQueueProduce(new UserStatLeaveConsumer($user_stat_data), 0, 'user_stat_leave');
+            //剔除进入页面统计事件FD映射
+            redis()->hDel("ws:connect:user:stat:fd:map:entry", ws_fd_hash_field($fd));
         }
         
         //剔除用户连接数据

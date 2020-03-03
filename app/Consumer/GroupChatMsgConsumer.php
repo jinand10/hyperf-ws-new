@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Consumer;
 
-use App\Service\WebSocket\MainService;
 use Hyperf\AsyncQueue\Job;
 use Hyperf\DbConnection\Db;
 
